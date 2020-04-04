@@ -1,0 +1,80 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      # [START init_container]
+      initContainers:
+      - name: init-build
+        image: golang:1.14
+        command:
+        - /bin/sh
+        - -c
+        - 'go get github.com/neoseele/gostuff/prom && cp /go/bin/prom /data'
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      # [END init_container]
+      # [START app_container]
+      containers:
+      - name: myapp
+        command:
+        - /data/prom
+        image: golang:1.14
+        imagePullPolicy: IfNotPresent #Always
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 100m
+            memory: 200Mi
+        ports:
+        - name: prometheus
+          containerPort: 8000
+          protocol: TCP
+        volumeMounts:
+          - name: data
+            mountPath: /data
+      - name: prom-to-sd
+        command:
+        - /monitor
+        - --source=myapp:http://localhost:8000?metricsPrefix=custom.googleapis.com&whitelisted=processed_ops_total
+        - --pod-id=$(POD_NAME)
+        - --namespace-id=$(POD_NAMESPACE)
+        - --logtostderr=true
+        - --v=2
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        image: k8s.gcr.io/prometheus-to-sd:v0.5.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 100m
+            memory: 200Mi
+        ports:
+        - name: debug
+          containerPort: 6061
+          protocol: TCP
+      # [END app_container]
+      volumes:
+        - name: data
+          emptyDir: {}
