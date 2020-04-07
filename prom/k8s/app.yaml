@@ -17,7 +17,16 @@ spec:
         command:
         - /bin/sh
         - -c
-        - 'go get github.com/neoseele/gostuff/prom && cp /go/bin/prom /data'
+        - >
+          go get -v github.com/neoseele/gostuff/prom;
+          go build -a -installsuffix cgo -o /data/prom github.com/neoseele/gostuff/prom;
+        env:
+        - name: CGO_ENABLED
+          value: '0'
+        - name: GOOS
+          value: linux
+        - name: GOARCH
+          value: amd64
         volumeMounts:
         - name: data
           mountPath: /data
@@ -26,8 +35,11 @@ spec:
       containers:
       - name: myapp
         command:
+        - /bin/sh
+        - -c
         - /data/prom
-        image: golang:1.14
+        # - sleep 60000
+        image: alpine:edge
         imagePullPolicy: IfNotPresent #Always
         resources:
           requests:
